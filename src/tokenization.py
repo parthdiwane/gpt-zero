@@ -4,11 +4,9 @@ class tokenization:
     def __init__(self, corpus):
         self.corpus = corpus
 
-    def pre_tokenization(self, text):
-        # contractions, words, numbers, non-english words and numebrs, sucessvive whitespaces
-        return re.findall(r'\'s|\'t|\'re|\'ve|\'m|\'ll|\'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+', text)
 
-    def intialize(self, pre_tokenized_text):
+    def pre_tokenize(self, text):
+        pre_tokenized_text = re.findall(r'\'s|\'t|\'re|\'ve|\'m|\'ll|\'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+', text)
         initialization = []
         for word in pre_tokenized_text:
             addition = []
@@ -20,43 +18,55 @@ class tokenization:
             initialization.append(tuple(addition))
         return initialization
     
-    def find_most_freq(self, text):
+    def find_most_freq(self, pre_tokenized_text): # pre-token is a list of tuples
         freq_map = {}
-        for word in text:
+        for word in pre_tokenized_text:
             for i in range(len(word) - 1):
                 subset = word[i : i + 2]
-                if subset in freq_map:
-                    freq_map[subset] += 1
+                current_pair = ""
+                for char in subset:
+                    current_pair += char
+                if current_pair in freq_map:
+                    freq_map[current_pair] += 1
                 else:
-                    freq_map[subset] = 1
-        most_freq = max(freq_map, keys=freq_map.get)
+                    freq_map[current_pair] = 1
+        most_freq = max(freq_map, key=freq_map.get)
         return most_freq
 
     def replace(self, text, subset):
-        for j in range(len(text)):
-            word = text[j]
-            for i in range(len(word) - 1):
-                if word[i : i + 2] == subset:
-                    text[j] = word[0:i] + subset + word[i + 2:]
+        for words in range(len(text)):
+
+            current_word = list(text[words])
+            n = len(current_word)
+            i = 0
+
+            replaced_word = []
+
+            while i < n:
+                if i < n - 1 and "".join(current_word[i : i + 2]) == subset:
+                    replaced_word.append("".join(current_word[i : i + 2]))
+                    i += 2
+                else:
+                    replaced_word.append(current_word[i])
+                    i += 1
+            text[words] = tuple(replaced_word)
         return text
-        
+
+
     def bpe(self, text, k):
-        pre_token = self.pre_tokenization(text=text)
-        initialization = self.intialize(text)
-    
-        vocab = set()
+        pretokenized_sentence = self.pre_tokenize(text)
 
-        # add stuff to vocab
+        vocab = []
+
         for i in range(k):
-            curr_most_freq = self.find_most_freq(initialization)
-            vocab.add(curr_most_freq)
-            initialization = self.replace(initialization, curr_most_freq)
+            most_freq_chars = self.find_most_freq(pre_tokenized_text=pretokenized_sentence)
+            vocab.append(most_freq_chars)
+            pretokenized_sentence = self.replace(pretokenized_sentence, most_freq_chars)
+        return vocab
 
-        
-             
-                 
         
 if __name__ == "__main__":
     test = tokenization("hi")
-    print(test.pre_tokenization("hello world"))
-    print(test.bpe("hello world", 10))
+    please_work = test.bpe("hello world", 10)
+    print(please_work)
+    a
