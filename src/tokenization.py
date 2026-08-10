@@ -6,7 +6,7 @@ class tokenization:
 
 
     def pre_tokenize(self, text):
-        pre_tokenized_text = re.findall(r'\'s|\'t|\'re|\'ve|\'m|\'ll|\'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+', text)
+        pre_tokenized_text = re.findall(r'\'s|\'t|\'re|\'ve|\'m|\'ll|\'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+', text) # regex for gpt2 i think
         initialization = []
         for word in pre_tokenized_text:
             addition = []
@@ -53,20 +53,44 @@ class tokenization:
         return text
 
 
-    def bpe(self, text, k):
+    def bpe_learner(self, text, k):
         pretokenized_sentence = self.pre_tokenize(text)
 
-        vocab = []
+        self.vocab = []
 
         for i in range(k):
             most_freq_chars = self.find_most_freq(pre_tokenized_text=pretokenized_sentence)
-            vocab.append(most_freq_chars)
+            self.vocab.append(most_freq_chars)
             pretokenized_sentence = self.replace(pretokenized_sentence, most_freq_chars)
-        return vocab
+
+
+    def bpe_segmenter(self, text):
+        pretoken = self.pre_tokenize(text=text)
+        for v in self.vocab:
+            for word_index in range(len(pretoken)):
+                word = pretoken[word_index]
+                new_word = ""
+                i = 0
+                while i < len(word):
+                    if i < len(word) - 1 and v == word[i : i + 2]:
+                        new_word += v
+                    else:
+                        new_word += word[i]
+                    i += 1
+                pretoken[word_index] = new_word
+        tokenized_text = pretoken
+        return tokenized_text
+
+
+
+            
+
+    
 
         
 if __name__ == "__main__":
     test = tokenization("hi")
-    please_work = test.bpe("hello world", 10)
-    print(please_work)
-    a
+    test.bpe_learner("hello world", 5)
+    print(test.bpe_segmenter("hello world"))
+
+    
