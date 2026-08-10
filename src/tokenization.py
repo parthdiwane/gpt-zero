@@ -81,16 +81,4 @@ class tokenization:
         tokenized_text = pretoken
         return tokenized_text
 
-
-
-            
-
-    
-
-        
-if __name__ == "__main__":
-    test = tokenization("hi")
-    test.bpe_learner("hello world", 5)
-    print(test.bpe_segmenter("hello world"))
-
     
