@@ -112,8 +112,13 @@ class tokenization:
                     i += 1
                 pretoken[word_index] = new_word
         tokenized_text = pretoken
-        return tokenized_text
+        tokenized_text_id = []
+        for token in tokenized_text:
+            tokenized_text.append(self.token_id[token])
+    
+        return tokenized_text, tokenized_text_id
 
-    def token_id(self,)
+    def token_id(self):
+        return self.token_id
 
     
