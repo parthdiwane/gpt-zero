@@ -1,8 +1,35 @@
 import regex as re
+import numpy as np
 
 class tokenization:
     def __init__(self, corpus):
         self.corpus = corpus
+
+    def from_npz(cls, path, keys=None, join=" "):
+        return cls(cls.load_npz(path, keys=keys, join=join))
+
+    def decode_entry(entry):
+        # npz round-trips words as np.str_, bytes, or object depending on how it was saved
+        if isinstance(entry, bytes):
+            return entry.decode("utf-8")
+        return str(entry)
+
+    def load_npz(path, keys=None, join=" "):
+        words = []
+        with np.load(path, allow_pickle=True) as archive:
+            selected = archive.files if keys is None else keys
+            if isinstance(selected, str):
+                selected = [selected]
+            for key in selected:
+                array = archive[key]
+                if array.dtype.kind not in ("U", "S", "O"):
+                    raise ValueError(f"'{key}' in {path} holds {array.dtype}, not text")
+                if array.ndim == 0:
+                    words.append(tokenization.decode_entry(array.item()))
+                else:
+                    for entry in array.ravel():
+                        words.append(tokenization.decode_entry(entry))
+        return join.join(words)
 
 
     def pre_tokenize(self, text):
@@ -57,11 +84,17 @@ class tokenization:
         pretokenized_sentence = self.pre_tokenize(text)
 
         self.vocab = []
-
+        self.vocab_id = {}
+        current_id = 1
         for i in range(k):
-            most_freq_chars = self.find_most_freq(pre_tokenized_text=pretokenized_sentence)
-            self.vocab.append(most_freq_chars)
+            most_freq_chars = self.find_most_freq(pre_tokenized_text=pretokenized_sentence) # finding the most frequent characters
+
+            self.vocab.append(most_freq_chars) # add tings to vocab
+            self.vocab_id[most_freq_chars] = current_id
+            current_id += 1
+
             pretokenized_sentence = self.replace(pretokenized_sentence, most_freq_chars)
+
 
 
     def bpe_segmenter(self, text):
@@ -80,5 +113,7 @@ class tokenization:
                 pretoken[word_index] = new_word
         tokenized_text = pretoken
         return tokenized_text
+
+    def token_id(self,)
 
     
