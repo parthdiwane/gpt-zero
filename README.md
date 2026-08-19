@@ -1,0 +1,1 @@
+this is a project where i code gpt 2 by hand using numpy and basic python libraries trying to use the least amount of ai as possible (other than to code some trivial sutff i dont feel like doing)

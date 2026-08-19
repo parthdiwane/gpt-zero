@@ -1,0 +1,242 @@
+# Derivative definitions, in the spirit of PyTorch's tools/autograd/derivatives.yaml.
+#
+# Each entry declares one differentiable op. `gen_derivatives.py` reads this file
+# and emits _derivatives_generated.py, so adding an op means adding an entry here
+# and re-running the generator -- never hand-editing the generated file.
+#
+# Fields
+#   name          op name; becomes <name>_forward / <name>_backward
+#   args          forward parameters, in order (torch-style: self, other, ...)
+#   nondiff       args that carry no gradient (axes, masks, target ids, eps)
+#   defaults      default values for nondiff args
+#   forward       numpy expression computing the output from the args
+#   derivatives   arg name -> expression for that arg's gradient
+#   doc           one-line description, copied into the generated docstring
+#
+# Names available inside a derivative expression:
+#   grad      incoming gradient, same shape as the forward output
+#   result    the forward output (only saved when a formula mentions it)
+#   <args>    the forward inputs, as raw ndarrays
+#   helpers   anything exported by derivative_helpers.py
+#
+# Every derivative expression is automatically wrapped in
+# `unbroadcast(..., np.shape(arg))`, so formulas can ignore broadcasting.
+
+# ---------------------------------------------------------------- elementwise
+
+- name: add
+  args: [self, other]
+  forward: self + other
+  derivatives:
+    self: grad
+    other: grad
+  doc: Elementwise addition.
+
+- name: sub
+  args: [self, other]
+  forward: self - other
+  derivatives:
+    self: grad
+    other: -grad
+  doc: Elementwise subtraction.
+
+- name: mul
+  args: [self, other]
+  forward: self * other
+  derivatives:
+    self: grad * other
+    other: grad * self
+  doc: Elementwise multiplication.
+
+- name: div
+  args: [self, other]
+  forward: self / other
+  derivatives:
+    self: grad / other
+    other: -grad * self / (other * other)
+  doc: Elementwise division.
+
+- name: neg
+  args: [self]
+  forward: -self
+  derivatives:
+    self: -grad
+  doc: Negation.
+
+- name: pow
+  args: [self, exponent]
+  nondiff: [exponent]
+  forward: self ** exponent
+  derivatives:
+    self: grad * exponent * self ** (exponent - 1)
+  doc: Raise to a constant power.
+
+- name: exp
+  args: [self]
+  forward: np.exp(self)
+  derivatives:
+    self: grad * result
+  doc: Elementwise exp.
+
+- name: log
+  args: [self]
+  forward: np.log(self)
+  derivatives:
+    self: grad / self
+  doc: Elementwise natural log.
+
+- name: sqrt
+  args: [self]
+  forward: np.sqrt(self)
+  derivatives:
+    self: grad / (2.0 * result)
+  doc: Elementwise square root.
+
+- name: tanh
+  args: [self]
+  forward: np.tanh(self)
+  derivatives:
+    self: grad * (1.0 - result * result)
+  doc: Hyperbolic tangent.
+
+- name: sigmoid
+  args: [self]
+  forward: 1.0 / (1.0 + np.exp(-self))
+  derivatives:
+    self: grad * result * (1.0 - result)
+  doc: Logistic sigmoid.
+
+- name: relu
+  args: [self]
+  forward: np.maximum(self, 0.0)
+  derivatives:
+    self: grad * (self > 0.0)
+  doc: Rectified linear unit. Subgradient 0 at the kink.
+
+- name: gelu
+  args: [self]
+  forward: gelu_fn(self)
+  derivatives:
+    self: gelu_grad(grad, self)
+  doc: GELU, tanh approximation (the variant GPT-2 uses).
+
+# --------------------------------------------------------------- linear algebra
+
+- name: matmul
+  args: [self, other]
+  forward: self @ other
+  derivatives:
+    self: grad @ np.swapaxes(other, -1, -2)
+    other: np.swapaxes(self, -1, -2) @ grad
+  doc: Matrix product. Both operands must be at least 2-D.
+
+# ---------------------------------------------------------------- reductions
+
+- name: sum
+  args: [self, dim, keepdim]
+  nondiff: [dim, keepdim]
+  defaults: {dim: null, keepdim: false}
+  forward: np.sum(self, axis=dim, keepdims=keepdim)
+  derivatives:
+    self: unreduce(grad, np.shape(self), dim, keepdim)
+  doc: Sum over dim (or everything when dim is None).
+
+- name: mean
+  args: [self, dim, keepdim]
+  nondiff: [dim, keepdim]
+  defaults: {dim: null, keepdim: false}
+  forward: np.mean(self, axis=dim, keepdims=keepdim)
+  derivatives:
+    self: unreduce(grad, np.shape(self), dim, keepdim) / reduced_count(np.shape(self), dim)
+  doc: Mean over dim (or everything when dim is None).
+
+- name: max
+  args: [self, dim, keepdim]
+  nondiff: [dim, keepdim]
+  defaults: {dim: null, keepdim: false}
+  forward: np.max(self, axis=dim, keepdims=keepdim)
+  derivatives:
+    self: unreduce(grad, np.shape(self), dim, keepdim) * (self == unreduce(result, np.shape(self), dim, keepdim))
+  doc: Max over dim. On ties the gradient is copied to every tied element (torch picks one).
+
+# ------------------------------------------------------------------- reshapes
+
+- name: reshape
+  args: [self, shape]
+  nondiff: [shape]
+  forward: np.reshape(self, shape)
+  derivatives:
+    self: np.reshape(grad, np.shape(self))
+  doc: Reshape. Pure view bookkeeping, so the backward is just the inverse reshape.
+
+- name: transpose
+  args: [self, dim0, dim1]
+  nondiff: [dim0, dim1]
+  defaults: {dim0: -2, dim1: -1}
+  forward: np.swapaxes(self, dim0, dim1)
+  derivatives:
+    self: np.swapaxes(grad, dim0, dim1)
+  doc: Swap two axes.
+
+- name: permute
+  args: [self, dims]
+  nondiff: [dims]
+  forward: np.transpose(self, dims)
+  derivatives:
+    self: permute_grad(grad, dims)
+  doc: Arbitrary axis permutation.
+
+# --------------------------------------------------------- transformer pieces
+
+- name: embedding
+  args: [weight, index]
+  nondiff: [index]
+  forward: weight[index]
+  derivatives:
+    weight: scatter_add(np.shape(weight), index, grad, weight.dtype)
+  doc: Token-embedding lookup. Repeated ids accumulate, hence scatter-add.
+
+- name: softmax
+  args: [self, dim]
+  nondiff: [dim]
+  defaults: {dim: -1}
+  forward: np.exp(self - np.max(self, axis=dim, keepdims=True)) / np.sum(np.exp(self - np.max(self, axis=dim, keepdims=True)), axis=dim, keepdims=True)
+  derivatives:
+    self: (grad - np.sum(grad * result, axis=dim, keepdims=True)) * result
+  doc: Softmax. Backward uses the output, so no Jacobian is ever materialized.
+
+- name: log_softmax
+  args: [self, dim]
+  nondiff: [dim]
+  defaults: {dim: -1}
+  forward: log_softmax_stable(self, dim)
+  derivatives:
+    self: grad - np.exp(result) * np.sum(grad, axis=dim, keepdims=True)
+  doc: Numerically stable log(softmax(x)).
+
+- name: masked_fill
+  args: [self, mask, value]
+  nondiff: [mask, value]
+  forward: np.where(mask, value, self)
+  derivatives:
+    self: grad * np.logical_not(mask)
+  doc: Fill where mask is True. Used for the causal attention mask.
+
+- name: layernorm
+  args: [self, weight, bias, eps]
+  nondiff: [eps]
+  defaults: {eps: 1.0e-5}
+  forward: layernorm_apply(self, weight, bias, eps)
+  derivatives:
+    self: layernorm_grad_input(grad, self, weight, eps)
+    weight: grad * layernorm_xhat(self, eps)
+    bias: grad
+  doc: LayerNorm over the last axis. Fused, so the mean/var graph never materializes.
+
+- name: cross_entropy
+  args: [self, target]
+  nondiff: [target]
+  forward: cross_entropy_loss(self, target)
+  derivatives:
+    self: cross_entropy_grad_logits(grad, self, target)
+  doc: Mean cross-entropy over flattened positions. `self` is raw logits.
