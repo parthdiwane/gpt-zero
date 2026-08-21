@@ -1,10 +1,4 @@
-"""Runtime helpers referenced by the formulas in derivatives.yaml.
 
-The generated code in _derivatives_generated.py imports from here, so anything
-a gradient formula needs that is more than a one-line numpy expression lives in
-this file. Everything operates on plain np.ndarray -- nothing here knows about
-Tensors or the autograd graph.
-"""
 
 import math
 
