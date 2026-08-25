@@ -1,4 +1,5 @@
 import numpy as np
+import typing
 
 
 class Tensor:
@@ -24,6 +25,21 @@ class Tensor:
     def __repr__(self):
         return "Tensor(shape=(" + str(self.shape) + ",requires_grad=" + str(self.requires_grad) + ")"
     
+
+SCHEMA = {} # {opeartion : {"saved_inputs: ":, "saves_results: bool":}}
+
+class Node:
+    
+    def __init__(self, operation: str, parents: list[Tensor]):
+        self.operation = operation
+        self.parents = parents
+        self.flag = SCHEMA[operation]["saves_results"]
+        self.saved_inputs = []
+        if self.flag is False:
+            self.saved_inputs = None
+        else:
+            for index in SCHEMA[operation]["saved_inputs"]:
+                self.saved_inputs.append(parents[index])
 
 
 
