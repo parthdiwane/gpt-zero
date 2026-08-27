@@ -199,3 +199,25 @@ class Tensor:
 
     def __repr__(self):
         return "Tensor(shape=(" + str(self.shape) + ",requires_grad=" + str(self.requires_grad) + ")"
+
+    def __add__(self, rhs: Tensor):
+        return self.data + rhs.data
+    def __mul__(self, rhs: Tensor):
+        return np.dot(self.data, rhs.data)
+    def __matmul__(self, rhs: Tensor):
+        return np.matmul(self.data, rhs.data)
+    def __neg__(self):
+        return -self.data
+    def __pow__(self, rhs: int):
+        return self.data ** rhs
+    def __truediv__(self, rhs: Tensor):
+        return self.data / rhs
+    def __setitem__(self, row, col, value):
+        self.data[row][col] = value
+    def __getitem__(self, row, col):
+        return self.data[row][col]
+    def __eq__(self, rhs: Tensor):
+        return self.data == rhs.data
+
+    
+        
