@@ -77,6 +77,7 @@ def _bind(name, args, kwargs):
     return tuple(bound)
 
 
+
 def topo_order(root):
     """Iterative post-order traversal of the graph reachable from `root`."""
     topo = []
@@ -102,6 +103,14 @@ def topo_order(root):
     return topo
 
 
+
+def is_parameter(tensor):
+    if isinstance(tensor, Parameter):
+        return True
+    else:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Graph
 # ---------------------------------------------------------------------------
@@ -114,6 +123,13 @@ class Node:
         self.parents = parents
         self.cache = cache
         self.needs = needs
+
+
+class Parameter:
+    def __init__(self, data, requires_grad = True):
+        super().__init__(data=data, requires_grad=True)
+    
+        
 
 
 class Tensor:
