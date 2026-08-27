@@ -358,6 +358,11 @@ class Tensor:
                 if needs:
                     parent.grad += current_tensor_grad
 
+
+    def zero_grad(self):
+        self.grad = None
+        return
+
     @staticmethod
     def apply(name, *args, **kwargs):
         bound = _bind(name, args, kwargs)  # returns tensors
